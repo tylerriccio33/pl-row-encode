@@ -1,0 +1,23 @@
+[package]
+name = "pl_row_encode"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "pl_row_encode"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.27", features = ["extension-module", "abi3-py39"] }
+pyo3-polars = { version = "0.26", features = ["derive"] }
+polars = { version = "0.53", default-features = false }
+polars-core = { version = "0.53", features = ["dtype-struct", "serde"] }
+polars-row = "0.53"
+polars-arrow = "0.53"
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+bincode = "1"
+
+[profile.release]
+opt-level = 3
+strip = true

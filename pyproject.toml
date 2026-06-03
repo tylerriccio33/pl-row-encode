@@ -1,0 +1,30 @@
+[project]
+name = "pl-row-encode"
+version = "0.1.0"
+description = "Row-level, type-preserving encode/decode for Polars columns"
+readme = "README.md"
+authors = [
+    { name = "Tyler Riccio", email = "tylerriccio8@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "polars>=1.34,<2",
+]
+
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+# This is a Polars expression plugin: the compiled library exposes `#[polars_expr]`
+# functions that Polars dlopens via `register_plugin_function`, not a `#[pymodule]`.
+# `python-source = "."` keeps the `pl_row_encode/` Python package as the source of truth.
+python-source = "."
+module-name = "pl_row_encode._internal"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.15",
+    "ty>=0.0.42",
+    "pytest>=8",
+]
