@@ -24,6 +24,8 @@ __all__ = ["encode", "decode", "decode_series"]
 
 _LIB = Path(__file__).parent
 
+# TODO: Doctests for all
+
 
 def encode(*exprs: IntoExpr) -> pl.Expr:
     """Encode one or more columns into a single self-describing `Binary` token column."""
@@ -38,6 +40,7 @@ def encode(*exprs: IntoExpr) -> pl.Expr:
     )
 
 
+# TODO: Need doctests and explanations
 def _extract_header(token: bytes) -> bytes:
     """Lift the `[u32 len][header]` prefix off a token (the bytes decode needs up front)."""
     if len(token) < 4:
@@ -47,6 +50,8 @@ def _extract_header(token: bytes) -> bytes:
     return token[: 4 + header_len]
 
 
+# TODO: Should be able to do this without the schema_header
+# TODO: What about regular dataframes?
 def decode(expr: IntoExpr, *, schema_header: bytes) -> pl.Expr:
     """Decode a `Binary` token column back into a `Struct`.
 
@@ -64,6 +69,7 @@ def decode(expr: IntoExpr, *, schema_header: bytes) -> pl.Expr:
     )
 
 
+# TODO: Should try and unify this with the regular decoder
 def decode_series(s: pl.Series) -> pl.Series:
     """Eagerly decode a `Binary` token Series into a `Struct` Series, schema-free.
 

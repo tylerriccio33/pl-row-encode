@@ -14,3 +14,7 @@ wheels/
 target/
 
 *.so
+
+.tox/
+
+.pytest_cache

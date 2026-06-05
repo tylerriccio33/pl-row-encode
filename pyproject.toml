@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Tyler Riccio", email = "tylerriccio8@gmail.com" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "polars>=1.34,<2",
 ]
@@ -27,4 +27,7 @@ dev = [
     "ruff>=0.15.15",
     "ty>=0.0.42",
     "pytest>=8",
+    "prek>=0.4.3",
+    "tox>=4.21",
+    "tox-uv>=1.13",
 ]

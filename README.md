@@ -5,17 +5,17 @@ A Polars plugin for **row-level, type-preserving encode/decode**.
 `encode(*cols)` packs a set of columns into a single `Binary` column where each value is an
 opaque, **self-describing** token: the [`polars-row`](https://docs.rs/polars-row) encoding of
 the row, prefixed with an embedded schema header. `decode_series(...)` reverses it back into a
-`Struct` — recovering the original dtypes — **without needing any external schema**.
+`Struct`, recovering the original dtypes **without needing any external schema**.
 
 ```
 DataFrame
-  -> encode(*cols)        # Arrow columns -> canonical typed row bytes (Binary)
-  -> vendor (opaque bytes)
-  -> decode_series(...)   # row bytes -> Struct -> original typed columns
+  -> encode(*cols)
+  -> opaque bytes
+  -> decode(...)   # (row bytes -> Struct -> original typed columns)
   -> DataFrame
 ```
 
-The vendor only ever holds opaque bytes; the type information rides along inside each token.
+The type information rides with the token and can be decoded on the spot at some later date.
 
 ## Token layout
 
@@ -69,5 +69,3 @@ subsequent builds are incremental and fast.
   encoding — lossless for primitive, string, boolean, temporal, and nested types.
 - `decode_series` infers the schema from the first non-null token, so an all-null/empty
   Series needs the explicit `decode(schema_header=...)` form.
-- The maturin build prints a harmless `Couldn't find the symbol PyInit__internal` warning;
-  this is expected for Polars expression plugins (they are dlopened by Polars, not imported).

@@ -8,3 +8,6 @@ lint: ## Run the linter and type checker
 	@uv run ruff format
 	@uv run ruff check
 	@uv run ty check
+
+tox: ## Run the test suite in all supported Python versions
+	@uv run tox
