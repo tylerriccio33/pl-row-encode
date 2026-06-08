@@ -11,3 +11,6 @@ lint: ## Run the linter and type checker
 
 tox: ## Run the test suite in all supported Python versions
 	@uv run tox
+
+pre-commit: ## Run pre-commit hooks
+	@uv run pre-commit run --all-files
