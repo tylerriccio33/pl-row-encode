@@ -10,7 +10,6 @@ use serde::Deserialize;
 /// where `header` is a bincode-serialized `Vec<Field>` (the logical schema) and
 /// `row bytes` is the polars-row unordered encoding of that single row. Embedding the
 /// header per value makes every token independently self-describing.
-
 fn serialize_header(fields: &[Field]) -> PolarsResult<Vec<u8>> {
     bincode::serialize(&fields.to_vec())
         .map_err(|e| polars_err!(ComputeError: "failed to serialize schema header: {e}"))
@@ -61,7 +60,7 @@ fn reject_categorical(dtype: &DataType) -> PolarsResult<()> {
                 reject_categorical(f.dtype())?;
             }
             Ok(())
-        },
+        }
         _ => Ok(()),
     }
 }
