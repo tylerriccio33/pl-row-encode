@@ -1,7 +1,16 @@
 # Runnable with `prek` (the project's fast pre-commit runner) or vanilla `pre-commit`.
-#   prek install        # set up the git hook
+#   prek install        # sets up pre-commit AND commit-msg hooks (see below)
 #   prek run --all-files
+default_install_hook_types: [pre-commit, commit-msg]
+
 repos:
+  # Enforces Conventional Commit messages so release-please can compute versions.
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.0.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
