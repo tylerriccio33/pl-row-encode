@@ -1,12 +1,21 @@
 name: publish
 
-# Builds compiled wheels (+ sdist) for every supported platform. On a published
-# GitHub Release (cut by release-please) it uploads them to PyPI via OIDC Trusted
+# Builds compiled wheels (+ sdist) for every supported platform. When called by
+# release-please.yml with publish=true it uploads them to PyPI via OIDC Trusted
 # Publishing -- no API token stored. On pull_request / workflow_dispatch it only
 # builds, acting as a wheel-build smoke test.
+#
+# NOTE: this is invoked via `workflow_call` from release-please.yml rather than a
+# `release: published` trigger, because releases created by the default GITHUB_TOKEN
+# cannot trigger downstream workflows. The caller runs in the push-to-main context,
+# which is not subject to that restriction.
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      publish:
+        description: "Upload the built artifacts to PyPI"
+        type: boolean
+        default: false
   pull_request:
     paths:
       - "src/**"
@@ -144,7 +153,7 @@ jobs:
   release:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    if: github.event_name == 'release'
+    if: ${{ inputs.publish }}
     needs: [linux, musllinux, windows, macos, sdist]
     environment: pypi
     permissions:
