@@ -12,11 +12,28 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       # Maintains a release PR off main; merging it bumps Cargo.toml + Cargo.lock,
-      # updates CHANGELOG.md, tags vX.Y.Z, and publishes a GitHub Release (which
-      # triggers publish.yml to build + upload wheels to PyPI).
+      # updates CHANGELOG.md, tags vX.Y.Z, and publishes a GitHub Release.
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # When a release was just created, build wheels and publish to PyPI. Invoked here
+  # (in the push-to-main context) rather than via a `release:` trigger because releases
+  # made with GITHUB_TOKEN cannot trigger downstream workflows.
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    permissions:
+      id-token: write # OIDC Trusted Publishing
+      contents: read
+      attestations: write # build provenance
+    uses: ./.github/workflows/publish.yml
+    with:
+      publish: true
