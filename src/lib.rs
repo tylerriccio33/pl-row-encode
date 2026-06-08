@@ -42,6 +42,30 @@ fn fields_from_prefixed(buf: &[u8]) -> PolarsResult<Vec<Field>> {
     deserialize_header(&buf[4..end])
 }
 
+/// Categorical's category->string mapping lives in an external string cache, not in the
+/// dtype or the row bytes, so a token can't carry it -- decoding would panic in
+/// `cat_to_str`. Reject it (recursing through nested containers) at encode time with an
+/// actionable message instead of emitting a token that only blows up on decode. Enum is
+/// fine: its categories live in the dtype and ride along in the serialized header.
+fn reject_categorical(dtype: &DataType) -> PolarsResult<()> {
+    match dtype {
+        DataType::Categorical(_, _) => polars_bail!(
+            ComputeError:
+            "Categorical columns cannot be encoded: the category mapping is not embeddable \
+             in a token. Use Enum, or cast to String before encoding."
+        ),
+        DataType::List(inner) => reject_categorical(inner),
+        DataType::Array(inner, _) => reject_categorical(inner),
+        DataType::Struct(fields) => {
+            for f in fields {
+                reject_categorical(f.dtype())?;
+            }
+            Ok(())
+        },
+        _ => Ok(()),
+    }
+}
+
 #[polars_expr(output_type=Binary)]
 fn row_encode(inputs: &[Series]) -> PolarsResult<Series> {
     if inputs.is_empty() {
@@ -50,6 +74,10 @@ fn row_encode(inputs: &[Series]) -> PolarsResult<Series> {
 
     let columns: Vec<Column> = inputs.iter().cloned().map(Column::from).collect();
     let fields: Vec<Field> = inputs.iter().map(|s| s.field().into_owned()).collect();
+
+    for field in &fields {
+        reject_categorical(field.dtype())?;
+    }
 
     let header = serialize_header(&fields)?;
     let hlen = (header.len() as u32).to_le_bytes();

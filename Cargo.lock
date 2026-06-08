@@ -1048,6 +1048,7 @@ version = "0.53.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f672743a042b72ace4f88b29f8205ab200b29c5ac976c0560899680c07d2d09"
 dependencies = [
+ "atoi_simd",
  "bitflags",
  "bytemuck",
  "bytes",
@@ -1060,6 +1061,7 @@ dependencies = [
  "getrandom 0.3.4",
  "half",
  "hashbrown 0.16.1",
+ "itoa",
  "lz4",
  "num-traits",
  "polars-arrow-format",

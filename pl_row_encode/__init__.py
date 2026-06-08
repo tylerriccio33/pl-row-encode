@@ -44,11 +44,18 @@ __all__ = [
 
 _LIB = Path(__file__).parent
 
-# TODO: Doctests for all
-
 
 def encode(*exprs: IntoExpr) -> pl.Expr:
-    """Encode one or more columns into a single self-describing `Binary` token column."""
+    """Encode one or more columns into a single self-describing `Binary` token column.
+
+    >>> import polars as pl
+    >>> df = pl.DataFrame({"x": [1, 2], "y": ["a", "b"]})
+    >>> out = df.select(encode("x", "y").alias("tok"))
+    >>> out.schema
+    Schema({'tok': Binary})
+    >>> out.select(decode_peek(out, "tok").alias("row")).to_series().to_list()
+    [{'x': 1, 'y': 'a'}, {'x': 2, 'y': 'b'}]
+    """
     if not exprs:
         msg = "encode() requires at least one column"
         raise ValueError(msg)
@@ -66,6 +73,13 @@ def encode_series(*series: pl.Series) -> pl.Series:
     The eager counterpart to :func:`encode`: instead of a lazy expression it returns the
     materialized token column directly, so callers holding `Series` (not a frame) can get
     tokens — and, via :func:`get_header`, the schema header — in one step.
+
+    >>> import polars as pl
+    >>> tok = encode_series(pl.Series("x", [1, 2, 3]))
+    >>> tok.dtype
+    Binary
+    >>> decode_series(tok).to_list()
+    [{'x': 1}, {'x': 2}, {'x': 3}]
     """
     if not series:
         msg = "encode_series() requires at least one series"
@@ -80,6 +94,21 @@ def get_header(token: bytes | pl.Series) -> bytes:
     header is read from its first non-null value. The returned bytes are exactly what
     :func:`decode` expects as its ``schema_header`` argument, enabling a fully lazy decode
     without re-sniffing the data.
+
+    The first four bytes are the little-endian length of the header that follows:
+
+    >>> import polars as pl
+    >>> tok = encode_series(pl.Series("x", [1, 2, 3]))
+    >>> header = get_header(tok)
+    >>> import struct
+    >>> struct.unpack_from("<I", header)[0] == len(header) - 4
+    True
+    >>> get_header(tok[0]) == header
+    True
+    >>> decode_series(tok).to_list() == pl.select(
+    ...     decode(pl.lit(tok), schema_header=header)
+    ... ).to_series().to_list()
+    True
     """
     if isinstance(token, pl.Series):
         first = next((v for v in token if v is not None), None)
@@ -103,6 +132,12 @@ def decode(expr: IntoExpr, *, schema_header: bytes) -> pl.Expr:
     :func:`decode_series` for the eager path that extracts it for you). It is required so
     the output `Struct` dtype can be resolved before the data is materialized, which the
     Polars lazy engine needs.
+
+    >>> import polars as pl
+    >>> df = pl.DataFrame({"x": [1, 2]}).select(encode("x").alias("tok"))
+    >>> header = get_header(df.to_series())
+    >>> df.select(decode("tok", schema_header=header).alias("row")).to_series().to_list()
+    [{'x': 1}, {'x': 2}]
     """
     return register_plugin_function(
         plugin_path=_LIB,
@@ -123,6 +158,13 @@ def decode_peek(frame: Frame, column: str) -> pl.Expr:
 
     `frame` may be a `DataFrame` or `LazyFrame`. A peek is required because the output
     `Struct` dtype must be known before the lazy engine sees any data (see :func:`decode`).
+
+    >>> import polars as pl
+    >>> df = pl.DataFrame({"x": [1, 2], "y": ["a", "b"]}).select(
+    ...     encode("x", "y").alias("tok")
+    ... )
+    >>> df.select(decode_peek(df, "tok").alias("row")).to_series().to_list()
+    [{'x': 1, 'y': 'a'}, {'x': 2, 'y': 'b'}]
     """
     peek = cast(
         "pl.DataFrame",
@@ -145,6 +187,11 @@ def decode_series(s: pl.Series) -> pl.Series:
 
     The schema header is read directly from the first non-null token, so the caller does
     not need to supply or retain any schema.
+
+    >>> import polars as pl
+    >>> tok = encode_series(pl.Series("x", [10, 20]))
+    >>> decode_series(tok).to_list()
+    [{'x': 10}, {'x': 20}]
     """
     header = get_header(s)
     return pl.select(decode(pl.lit(s), schema_header=header)).to_series()
