@@ -1,21 +1,15 @@
-name: publish
+name: build-wheels
 
-# Builds compiled wheels (+ sdist) for every supported platform. When called by
-# release-please.yml with publish=true it uploads them to PyPI via OIDC Trusted
-# Publishing -- no API token stored. On pull_request / workflow_dispatch it only
-# builds, acting as a wheel-build smoke test.
+# Builds compiled wheels (+ sdist) for every supported platform and uploads them as
+# `wheels-*` artifacts. This is a reusable, build-only workflow: it does NOT publish.
+# release-please.yml calls it via `workflow_call` and then runs the PyPI upload itself.
 #
-# NOTE: this is invoked via `workflow_call` from release-please.yml rather than a
-# `release: published` trigger, because releases created by the default GITHUB_TOKEN
-# cannot trigger downstream workflows. The caller runs in the push-to-main context,
-# which is not subject to that restriction.
+# Why the upload lives in the caller, not here: PyPI Trusted Publishing does not work
+# from inside a reusable workflow (it raises `invalid-publisher`), so the
+# `pypa/gh-action-pypi-publish` step must run in a top-level workflow.
+# See https://github.com/pypa/gh-action-pypi-publish/issues/166
 on:
   workflow_call:
-    inputs:
-      publish:
-        description: "Upload the built artifacts to PyPI"
-        type: boolean
-        default: false
   pull_request:
     paths:
       - "src/**"
@@ -44,14 +38,14 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
-          sccache: ${{ github.event_name != 'release' }}
+          sccache: true
           manylinux: auto
       - name: Build free-threaded wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           args: --release --out dist -i python3.13t
-          sccache: ${{ github.event_name != 'release' }}
+          sccache: true
           manylinux: auto
       - uses: actions/upload-artifact@v4
         with:
@@ -74,7 +68,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
-          sccache: ${{ github.event_name != 'release' }}
+          sccache: true
           manylinux: musllinux_1_2
       - uses: actions/upload-artifact@v4
         with:
@@ -98,7 +92,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
-          sccache: ${{ github.event_name != 'release' }}
+          sccache: true
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-windows-${{ matrix.target }}
@@ -124,13 +118,13 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
-          sccache: ${{ github.event_name != 'release' }}
+          sccache: true
       - name: Build free-threaded wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           args: --release --out dist -i python3.13t
-          sccache: ${{ github.event_name != 'release' }}
+          sccache: true
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-${{ matrix.target }}
@@ -149,28 +143,3 @@ jobs:
         with:
           name: wheels-sdist
           path: dist
-
-  release:
-    name: Publish to PyPI
-    runs-on: ubuntu-latest
-    if: ${{ inputs.publish }}
-    needs: [linux, musllinux, windows, macos, sdist]
-    environment: pypi
-    permissions:
-      id-token: write       # OIDC Trusted Publishing
-      contents: read
-      attestations: write   # build provenance
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: wheels-*
-          path: dist
-          merge-multiple: true
-      - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: "dist/*"
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist

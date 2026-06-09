@@ -24,16 +24,38 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # When a release was just created, build wheels and publish to PyPI. Invoked here
-  # (in the push-to-main context) rather than via a `release:` trigger because releases
-  # made with GITHUB_TOKEN cannot trigger downstream workflows.
-  publish:
+  # When a release was just created, build wheels (reusable workflow) then publish.
+  # This all runs in the push-to-main context rather than via a `release:` trigger
+  # because releases made with GITHUB_TOKEN cannot trigger downstream workflows.
+  build:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    uses: ./.github/workflows/publish.yml
+
+  # The PyPI upload must run in this top-level workflow, not the reusable one above:
+  # Trusted Publishing fails (`invalid-publisher`) from inside a reusable workflow.
+  # NOTE: the PyPI trusted publisher must be configured with workflow file
+  # `release-please.yml` (this file), since that is the workflow that runs the upload.
+  pypi:
+    needs: [release-please, build]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    environment: pypi
     permissions:
       id-token: write # OIDC Trusted Publishing
       contents: read
       attestations: write # build provenance
-    uses: ./.github/workflows/publish.yml
-    with:
-      publish: true
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
