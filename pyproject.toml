@@ -37,6 +37,12 @@ build-backend = "maturin"
 python-source = "."
 module-name = "pl_row_encode._internal"
 
+[tool.pytest.ini_options]
+# Run the >>> examples in the public docstrings as tests, so the documented
+# usage can't silently rot. This is the third contract layer alongside
+# tests/contract/ (see CONTRACT.md).
+addopts = "--doctest-modules"
+
 [dependency-groups]
 dev = [
     "ruff>=0.15.15",
