@@ -99,15 +99,14 @@ jobs:
           path: dist
 
   macos:
-    runs-on: ${{ matrix.runner }}
+    # Both targets build on Apple-Silicon macos-14 runners (which can cross-compile
+    # the x86_64 wheel). The Intel macos-13 runners are being wound down and can sit
+    # queued for hours, which would block the whole release on the `pypi` job.
+    runs-on: macos-14
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: macos-13
-            target: x86_64
-          - runner: macos-14
-            target: aarch64
+        target: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
