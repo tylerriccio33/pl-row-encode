@@ -28,14 +28,22 @@ def test_encode_produces_binary_token():
 
 
 def test_lazy_roundtrip_via_decode_with_header():
-    df = pl.DataFrame({"x": [1, 2], "y": ["a", "b"]}).select(encode("x", "y").alias("tok"))
+    df = pl.DataFrame({"x": [1, 2], "y": ["a", "b"]}).select(
+        encode("x", "y").alias("tok")
+    )
     header = get_header(df.to_series())
-    rows = df.select(decode("tok", schema_header=header).alias("row")).to_series().to_list()
+    rows = (
+        df.select(decode("tok", schema_header=header).alias("row"))
+        .to_series()
+        .to_list()
+    )
     assert rows == [{"x": 1, "y": "a"}, {"x": 2, "y": "b"}]
 
 
 def test_lazy_roundtrip_via_decode_peek():
-    df = pl.DataFrame({"x": [1, 2], "y": ["a", "b"]}).select(encode("x", "y").alias("tok"))
+    df = pl.DataFrame({"x": [1, 2], "y": ["a", "b"]}).select(
+        encode("x", "y").alias("tok")
+    )
     rows = df.select(decode_peek(df, "tok").alias("row")).to_series().to_list()
     assert rows == [{"x": 1, "y": "a"}, {"x": 2, "y": "b"}]
 
