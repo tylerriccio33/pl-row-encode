@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/tylerriccio33/pl-row-encode/compare/v0.3.0...v0.3.1) (2026-06-09)
+
+
+### Bug Fixes
+
+* build both macOS wheels on macos-14 to avoid stuck macos-13 runner ([9be245a](https://github.com/tylerriccio33/pl-row-encode/commit/9be245a68dbc0b31be87827fa14beb100f27bd20))
+* build both macOS wheels on macos-14 to avoid stuck macos-13 runner ([4703b0d](https://github.com/tylerriccio33/pl-row-encode/commit/4703b0dcd0df106d9e9ad334c80f2a267c4cd29f))
+
 ## [0.3.0](https://github.com/tylerriccio33/pl-row-encode/compare/v0.2.0...v0.3.0) (2026-06-09)
 
 
