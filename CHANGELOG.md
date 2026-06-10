@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/tylerriccio33/pl-row-encode/compare/v0.3.1...v0.4.0) (2026-06-10)
+
+
+### Features
+
+* three-tier dtype guard so encodable implies decodable ([931a711](https://github.com/tylerriccio33/pl-row-encode/commit/931a7116b192df8b0d953cdbdb01032da697bb60))
+
+
+### Bug Fixes
+
+* dtype roundtrip guard ([a272366](https://github.com/tylerriccio33/pl-row-encode/commit/a2723667a5290294b716200b51cc1f6ca0833833))
+
 ## [0.3.1](https://github.com/tylerriccio33/pl-row-encode/compare/v0.3.0...v0.3.1) (2026-06-09)
 
 
