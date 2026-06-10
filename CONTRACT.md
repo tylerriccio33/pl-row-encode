@@ -42,6 +42,26 @@ and record the break here and in the changelog.
 
 A red contract suite means "this is a breaking change." That is the whole point.
 
+## Dtype safety: encodable implies decodable
+
+The core invariant is that a token we hand back can always be decoded — we never emit
+bytes that only blow up on the return trip. `encode` classifies every (recursively
+nested) input dtype into three tiers at encode time:
+
+- **Known-good** — dtypes verified to round-trip losslessly (the allowlist in
+  `classify_dtype`, guarded by the dtype-matrix property tests). These encode silently.
+- **Known-bad** — `Categorical`. Its category→string mapping lives in an external string
+  cache, not in the token, so decoding would panic. Hard-rejected at encode with an
+  actionable `ComputeError` (use `Enum`, or cast to `String`).
+- **Unknown** — anything we haven't vetted. We cannot safely probe it (the probe is the
+  dangerous decode itself), so encode emits a `UserWarning` that the token may fail or
+  panic on decode, then proceeds.
+
+The allowlist is keyed to the **compiled** polars crate version (`Cargo.toml`), not the
+user's runtime polars: the plugin decodes with its own embedded `polars-row`, so the set
+of safe dtypes is fixed at build time. Bumping the polars crate is the trigger to re-run
+the dtype-matrix tests and re-validate the allowlist.
+
 ## Updating the surface snapshot
 
 `test_surface.py` pins exact signatures. When you make an **additive** change (e.g. a new
