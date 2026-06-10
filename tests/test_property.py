@@ -6,6 +6,8 @@ If any dtype, null pattern, or value survives the polars-row encoding but not ou
 header plumbing, these will find it.
 """
 
+import warnings
+
 import polars as pl
 import pytest
 from hypothesis import given, settings
@@ -187,4 +189,35 @@ def test_nested_categorical_rejected_at_encode() -> None:
     with pytest.raises(
         pl.exceptions.ComputeError, match="Categorical columns cannot be encoded"
     ):
+        df.select(tok=encode("a"))
+
+
+# --- unknown-dtype tier: warn-and-proceed -------------------------------------------
+#
+# The encode-time guard has three tiers (see CONTRACT.md / classify_dtype in src/lib.rs):
+# known-good dtypes encode silently, Categorical is hard-rejected, and anything we haven't
+# vetted is "unknown" -- we can't safely probe it (the probe is the dangerous decode), so
+# we warn that the token may fail or panic on decode but still proceed. Null is a stable
+# example of a dtype that crosses the FFI but isn't on the allowlist.
+
+
+def test_unknown_dtype_warns_at_encode() -> None:
+    df = pl.DataFrame({"a": pl.Series("a", [None, None], dtype=pl.Null)})
+    with pytest.warns(UserWarning, match="not in the known round-trip-safe set"):
+        df.select(tok=encode("a"))
+
+
+def test_nested_unknown_dtype_warns_at_encode() -> None:
+    # Classification recurses through containers, so an unknown inner dtype warns too.
+    df = pl.DataFrame({"a": pl.Series("a", [[None]], dtype=pl.List(pl.Null))})
+    with pytest.warns(UserWarning, match=r"\[null\]"):
+        df.select(tok=encode("a"))
+
+
+@pytest.mark.parametrize("dtype", ROUNDTRIP_DTYPES)
+def test_allowlisted_dtypes_do_not_warn(dtype: pl.DataType) -> None:
+    # Known-good dtypes must encode silently -- no spurious unknown-dtype warning.
+    df = pl.DataFrame({"a": pl.Series("a", [None], dtype=dtype)})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # any warning becomes an exception
         df.select(tok=encode("a"))

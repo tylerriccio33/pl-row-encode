@@ -41,28 +41,86 @@ fn fields_from_prefixed(buf: &[u8]) -> PolarsResult<Vec<Field>> {
     deserialize_header(&buf[4..end])
 }
 
-/// Categorical's category->string mapping lives in an external string cache, not in the
-/// dtype or the row bytes, so a token can't carry it -- decoding would panic in
-/// `cat_to_str`. Reject it (recursing through nested containers) at encode time with an
-/// actionable message instead of emitting a token that only blows up on decode. Enum is
-/// fine: its categories live in the dtype and ride along in the serialized header.
-fn reject_categorical(dtype: &DataType) -> PolarsResult<()> {
+/// Classify a dtype against three tiers to uphold the invariant that anything we encode
+/// can be decoded (see CONTRACT.md):
+///
+///   * **known-good** -- dtypes whose polars-row encode/decode we've verified round-trips
+///     losslessly (the allowlist below, guarded by the dtype-matrix property tests). These
+///     encode silently.
+///   * **known-bad** -- `Categorical`. Its category->string mapping lives in an external
+///     string cache, not in the dtype or row bytes, so a token can't carry it; decoding
+///     panics in `cat_to_str`. Hard-rejected with an actionable message instead of
+///     emitting a token that blows up on decode. (Enum is fine: its categories live in the
+///     dtype and ride along in the serialized header.)
+///   * **unknown** -- anything else (new/exotic dtypes we haven't vetted). We can't safely
+///     probe it (the probe is the dangerous decode), so its name is collected and the
+///     caller emits a warning: the token may fail or panic on decode.
+///
+/// Recurses through `List` / `Array` / `Struct` so a nested offender is caught too. The
+/// allowlist is keyed to the compiled polars crate version (Cargo.toml), not the user's
+/// runtime polars, since the plugin decodes with its own embedded `polars-row`.
+fn classify_dtype(dtype: &DataType, unknown: &mut Vec<String>) -> PolarsResult<()> {
     match dtype {
         DataType::Categorical(_, _) => polars_bail!(
             ComputeError:
             "Categorical columns cannot be encoded: the category mapping is not embeddable \
              in a token. Use Enum, or cast to String before encoding."
         ),
-        DataType::List(inner) => reject_categorical(inner),
-        DataType::Array(inner, _) => reject_categorical(inner),
+
+        // Allowlist: leaves verified to round-trip (see tests/test_property.py).
+        DataType::Boolean
+        | DataType::UInt8
+        | DataType::UInt16
+        | DataType::UInt32
+        | DataType::UInt64
+        | DataType::Int8
+        | DataType::Int16
+        | DataType::Int32
+        | DataType::Int64
+        | DataType::Int128
+        | DataType::Float32
+        | DataType::Float64
+        | DataType::Decimal(_, _)
+        | DataType::String
+        | DataType::Binary
+        | DataType::Date
+        | DataType::Time
+        | DataType::Datetime(_, _)
+        | DataType::Duration(_)
+        | DataType::Enum(_, _) => Ok(()),
+
+        // Containers: known-good iff their inner dtype(s) are.
+        DataType::List(inner) | DataType::Array(inner, _) => classify_dtype(inner, unknown),
         DataType::Struct(fields) => {
             for f in fields {
-                reject_categorical(f.dtype())?;
+                classify_dtype(f.dtype(), unknown)?;
             }
             Ok(())
         }
-        _ => Ok(()),
+
+        other => {
+            unknown.push(format!("{other}"));
+            Ok(())
+        }
     }
+}
+
+/// Emit a Python `UserWarning` naming dtypes that aren't on the known-good allowlist.
+/// Reaching Python from inside a polars expr requires grabbing the GIL; failures to warn
+/// are swallowed (a warning must never break an encode).
+fn warn_unknown_dtypes(names: &[String]) {
+    use pyo3::prelude::*;
+
+    let msg = format!(
+        "pl_row_encode: dtype(s) [{}] are not in the known round-trip-safe set; the \
+         resulting token may fail or panic on decode. If decode works, please report it \
+         so the dtype can be allowlisted.",
+        names.join(", "),
+    );
+    let _ = Python::attach(|py| -> PyResult<()> {
+        py.import("warnings")?.call_method1("warn", (msg,))?;
+        Ok(())
+    });
 }
 
 #[polars_expr(output_type=Binary)]
@@ -74,8 +132,12 @@ fn row_encode(inputs: &[Series]) -> PolarsResult<Series> {
     let columns: Vec<Column> = inputs.iter().cloned().map(Column::from).collect();
     let fields: Vec<Field> = inputs.iter().map(|s| s.field().into_owned()).collect();
 
+    let mut unknown: Vec<String> = Vec::new();
     for field in &fields {
-        reject_categorical(field.dtype())?;
+        classify_dtype(field.dtype(), &mut unknown)?;
+    }
+    if !unknown.is_empty() {
+        warn_unknown_dtypes(&unknown);
     }
 
     let header = serialize_header(&fields)?;
